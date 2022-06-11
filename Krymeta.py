@@ -8,17 +8,23 @@ from yfinance import Ticker
 
 # For Proccesing The Data
 from numpy import array, argmax
+from sklearn.model_selection import train_test_split
 
 # For Model Creation
 from keras.models import Sequential
-from keras.layers import LSTM, Bidirectional, Dropout, Dense
+from keras.layers import LSTM, Bidirectional, Dense
 
 # For Ploting The Data
 from matplotlib.pyplot import title, plot, legend, show
 
+# For General Use
+from datetime import timedelta
+
 class Krymeta:
     def __init__(self, symbol):
         self.symbol = symbol
+
+        self.dates = []
 
         self.prices = {
             "high": [],
@@ -32,11 +38,34 @@ class Krymeta:
             "low": []
         }
 
+        self.uniqueGains = {
+            "high": [],
+            "low": []
+        }
+
         self.features = {
             "high": [],
             "low": []
         }
         self.labels = {
+            "high": [],
+            "low": []
+        }
+
+        self.xTrain = {
+            "high": [],
+            "low": []
+        }
+        self.xTest = {
+            "high": [],
+            "low": []
+        }
+
+        self.yTrain = {
+            "high": [],
+            "low": []
+        }
+        self.yTest = {
             "high": [],
             "low": []
         }
@@ -50,23 +79,25 @@ class Krymeta:
 
         self.createModel()
         
-        for _ in range(100):
+        for _ in range(len(self.yTest["high"])):
             self.predict()
 
         title(self.symbol)
 
-        plot(self.gains["high"])
-        plot(self.gains["high"][:-100])
+        plot([self.gains["high"][y] for y in self.yTest["high"]])
+        plot(self.gains["high"][-len(self.yTest["high"]):])
 
         # plot(self.prices["low"])
         # plot(self.prices["low"][:-100])
 
-        legend(["High Prediction", "High"])
+        legend(["High", "High Prediction"])
 
         show()
 
     def getPrices(self) -> None:
-        history = Ticker(self.symbol).history(period="max")
+        history = Ticker(self.symbol).history(period="max").reset_index()
+
+        self.dates = history["Date"].to_list()
 
         self.prices["high"] = history["High"].to_list()
         self.prices["low"] = history["Low"].to_list()
@@ -78,17 +109,27 @@ class Krymeta:
                     (self.prices[category][index + 1] - price) / price
                 )
 
-            for index in range(60, len(self.gains[category])):
+            self.uniqueGains[category] = list(set(self.gains[category]))
+
+            for index in range(30, len(self.gains[category])):
                 self.features[category].append(
-                    self.gains[category][index-60:index]
+                    self.gains[category][index-30:index]
                 )
 
                 self.labels[category].append(
-                    self.gains[category][index]
+                    self.uniqueGains[category].index(
+                        self.gains[category][index]
+                    )
                 )
             
-            self.features[category] = array(self.features[category]).reshape(-1, 1, 60)
+            self.features[category] = array(self.features[category]).reshape(-1, 1, 30)
             self.labels[category] = array(self.labels[category])
+
+            self.xTrain[category], self.xTest[category], self.yTrain[category], self.yTest[category] = train_test_split(
+                self.features[category],
+                self.labels[category],
+                test_size=0.2
+            )
 
     def createModel(self) -> None:
         for category in self.prices.keys():
@@ -120,26 +161,35 @@ class Krymeta:
             )
 
             model.fit(
-                self.features[category],
-                self.labels[category],
-                epochs=2,
-                batch_size=8
+                self.xTrain[category],
+                self.yTrain[category],
+                epochs=10,
+                batch_size=16,
+                validation_data=(
+                    self.xTest[category],
+                    self.yTest[category]
+                )
             )
 
             self.models[category] = model
 
     def predict(self):
         for category in self.prices.keys():
-            prediction = argmax(self.models[category].predict(
-                array(self.gains[category][-60:]).reshape(-1, 1, 60)
-            ))
+            self.dates.append(
+                self.dates[-1] + timedelta(days=1)
+            )
+
+            prediction = self.gains[category][argmax(self.models[category].predict(
+                array(self.gains[category][-30:]).reshape(-1, 1, 30),
+                verbose=0
+            ))]
 
             print(prediction)
 
             self.gains[category].append(prediction)
 
             self.prices[category].append(
-                (prediction / self.gains[category][-1]) + self.gains[category][-1]
+                (prediction / self.gains[category][-2]) + self.gains[category][-2]
             )
 
 Krymeta("AAPL")
