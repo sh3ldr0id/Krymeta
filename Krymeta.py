@@ -15,7 +15,7 @@ from keras.models import Sequential
 from keras.layers import LSTM, Bidirectional, Dense
 
 # For Ploting The Data
-from matplotlib.pyplot import title, plot, legend, show
+from matplotlib.pyplot import subplots, show
 
 # For General Use
 from datetime import timedelta
@@ -26,73 +26,38 @@ class Krymeta:
 
         self.dates = []
 
-        self.prices = {
+        HIGH_LOW = lambda : {
             "high": [],
             "low": []
         }
+
+        self.prices = HIGH_LOW()
 
         self.getPrices()
 
-        self.gains = {
-            "high": [],
-            "low": []
-        }
+        self.gains = HIGH_LOW()
 
-        self.uniqueGains = {
-            "high": [],
-            "low": []
-        }
+        self.uniqueGains = HIGH_LOW()
 
-        self.features = {
-            "high": [],
-            "low": []
-        }
-        self.labels = {
-            "high": [],
-            "low": []
-        }
+        self.features = HIGH_LOW()
+        self.labels = HIGH_LOW()
 
-        self.xTrain = {
-            "high": [],
-            "low": []
-        }
-        self.xTest = {
-            "high": [],
-            "low": []
-        }
+        self.xTrain = HIGH_LOW()
+        self.xTest = HIGH_LOW()
 
-        self.yTrain = {
-            "high": [],
-            "low": []
-        }
-        self.yTest = {
-            "high": [],
-            "low": []
-        }
+        self.yTrain = HIGH_LOW()
+        self.yTest = HIGH_LOW()
 
         self.preproccess()
 
-        self.models = {
-            "high": None,
-            "low": None
-        }
+        self.models = HIGH_LOW()
 
         self.createModel()
         
         for _ in range(len(self.yTest["high"])):
             self.predict()
 
-        title(self.symbol)
-
-        plot([self.gains["high"][y] for y in self.yTest["high"]])
-        plot(self.gains["high"][-len(self.yTest["high"]):])
-
-        # plot(self.prices["low"])
-        # plot(self.prices["low"][:-100])
-
-        legend(["High", "High Prediction"])
-
-        show()
+        self.plot()
 
     def getPrices(self) -> None:
         history = Ticker(self.symbol).history(period="max").reset_index()
@@ -173,7 +138,7 @@ class Krymeta:
 
             self.models[category] = model
 
-    def predict(self):
+    def predict(self) -> None:
         for category in self.prices.keys():
             self.dates.append(
                 self.dates[-1] + timedelta(days=1)
@@ -184,12 +149,27 @@ class Krymeta:
                 verbose=0
             ))]
 
-            print(prediction)
-
             self.gains[category].append(prediction)
 
             self.prices[category].append(
                 (prediction / self.gains[category][-2]) + self.gains[category][-2]
             )
 
+    def plot(self) -> None:
+        fig, ax = subplots(1, 2)
+
+        ax[0].set_title("High")
+        ax[0].plot([self.gains["high"][y] for y in self.yTest["high"]])
+        ax[0].plot(self.gains["high"][-len(self.yTest["high"]):])
+        ax[0].legend(["Orginal", "Prediction"])
+
+        ax[1].set_title("Low")
+        ax[1].plot([self.gains["low"][y] for y in self.yTest["low"]])
+        ax[1].plot(self.gains["low"][-len(self.yTest["low"]):])
+        ax[1].legend(["Orginal", "Prediction"])
+
+        fig.savefig(f"{self.symbol}.png")
+
 Krymeta("AAPL")
+
+print("Done")
