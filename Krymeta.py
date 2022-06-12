@@ -15,7 +15,7 @@ from keras.models import Sequential
 from keras.layers import LSTM, Bidirectional, Dense
 
 # For Ploting The Data
-from matplotlib.pyplot import subplots, show
+from matplotlib.pyplot import subplots
 
 # For General Use
 from datetime import timedelta
@@ -71,7 +71,7 @@ class Krymeta:
         for category in self.prices.keys():
             for index, price in enumerate(self.prices[category][:-1]):
                 self.gains[category].append(
-                    (self.prices[category][index + 1] - price) / price
+                    (self.prices[category][index+1] - price) / price
                 )
 
             self.uniqueGains[category] = list(set(self.gains[category]))
@@ -110,7 +110,7 @@ class Krymeta:
             ))
 
             model.add(Bidirectional(LSTM(
-                units=32,
+                units=64,
                 return_sequences=False
             )))
 
@@ -125,16 +125,30 @@ class Krymeta:
                 metrics=["accuracy"]
             )
 
-            model.fit(
+            history = model.fit(
                 self.xTrain[category],
                 self.yTrain[category],
-                epochs=10,
+                epochs=15,
                 batch_size=16,
                 validation_data=(
                     self.xTest[category],
                     self.yTest[category]
                 )
-            )
+            ).history
+
+            fig, ax = subplots(2, 1)
+
+            ax[0].set_title("Accuracy")
+            ax[0].plot(history["accuracy"])
+            ax[0].plot(history["val_accuracy"])
+            ax[0].legend(["Train", "Test"])
+
+            ax[1].set_title("Loss")
+            ax[1].plot(history["loss"])
+            ax[1].plot(history["val_loss"])
+            ax[1].legend(["Train", "Test"])
+
+            fig.savefig(f"{self.symbol}-{category}.png")
 
             self.models[category] = model
 
@@ -152,11 +166,11 @@ class Krymeta:
             self.gains[category].append(prediction)
 
             self.prices[category].append(
-                (prediction / self.gains[category][-2]) + self.gains[category][-2]
+                (prediction * self.gains[category][-2]) + self.gains[category][-2]
             )
 
     def plot(self) -> None:
-        fig, ax = subplots(1, 2)
+        fig, ax = subplots(2, 1)
 
         ax[0].set_title("High")
         ax[0].plot([self.gains["high"][y] for y in self.yTest["high"]])
