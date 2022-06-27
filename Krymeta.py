@@ -13,9 +13,10 @@ from sklearn.model_selection import train_test_split
 # For Model Creation
 from keras.models import Sequential
 from keras.layers import LSTM, Bidirectional, Dense
+from tensorflow.keras.optimizers import SGD, Adam
 
 # For Ploting The Data
-from matplotlib.pyplot import subplots
+from matplotlib.pyplot import clf, show, subplots
 
 # For General Use
 from datetime import timedelta
@@ -43,9 +44,9 @@ class Krymeta:
         self.labels = HIGH_LOW()
 
         self.xTrain = HIGH_LOW()
-        self.xTest = HIGH_LOW()
-
         self.yTrain = HIGH_LOW()
+        
+        self.xTest = HIGH_LOW()
         self.yTest = HIGH_LOW()
 
         self.preproccess()
@@ -54,7 +55,7 @@ class Krymeta:
 
         self.createModel()
         
-        for _ in range(len(self.yTest["high"])):
+        for _ in range(100):
             self.predict()
 
         self.plot()
@@ -69,9 +70,11 @@ class Krymeta:
 
     def preproccess(self) -> None:
         for category in self.prices.keys():
-            for index, price in enumerate(self.prices[category][:-1]):
+            for index in range(1, len(self.prices[category])):
                 self.gains[category].append(
-                    (self.prices[category][index+1] - price) / price
+                    round(
+                        self.prices[category][index] - self.prices[category][index-1]
+                    )
                 )
 
             self.uniqueGains[category] = list(set(self.gains[category]))
@@ -93,7 +96,8 @@ class Krymeta:
             self.xTrain[category], self.xTest[category], self.yTrain[category], self.yTest[category] = train_test_split(
                 self.features[category],
                 self.labels[category],
-                test_size=0.2
+                test_size=0.2,
+                shuffle=False
             )
 
     def createModel(self) -> None:
@@ -101,7 +105,7 @@ class Krymeta:
             model = Sequential()
 
             model.add(LSTM(
-                units=64,
+                units=128,
                 input_shape=(
                     self.features[category].shape[1],
                     self.features[category].shape[2]
@@ -111,6 +115,16 @@ class Krymeta:
 
             model.add(Bidirectional(LSTM(
                 units=64,
+                return_sequences=True
+            )))
+
+            model.add(Bidirectional(LSTM(
+                units=32,
+                return_sequences=True
+            )))
+
+            model.add(Bidirectional(LSTM(
+                units=16,
                 return_sequences=False
             )))
 
@@ -121,34 +135,26 @@ class Krymeta:
 
             model.compile(
                 loss="sparse_categorical_crossentropy",
-                optimizer="adam",
+                optimizer=Adam(
+                    learning_rate=0.0001,
+                    decay=0.00001
+                ),
                 metrics=["accuracy"]
             )
 
-            history = model.fit(
-                self.xTrain[category],
-                self.yTrain[category],
-                epochs=15,
-                batch_size=16,
-                validation_data=(
-                    self.xTest[category],
-                    self.yTest[category]
+            for l in range(2):
+                print("\n", "Test" if l == 0 else "Train", "\n")
+
+                model.fit(
+                    self.xTrain[category] if l == 0 else self.features[category],
+                    self.yTrain[category] if l == 0 else self.labels[category],
+                    epochs=25,
+                    batch_size=16,
+                    validation_data=(
+                        self.xTest[category],
+                        self.yTest[category]
+                    ) if l == 0 else None
                 )
-            ).history
-
-            fig, ax = subplots(2, 1)
-
-            ax[0].set_title("Accuracy")
-            ax[0].plot(history["accuracy"])
-            ax[0].plot(history["val_accuracy"])
-            ax[0].legend(["Train", "Test"])
-
-            ax[1].set_title("Loss")
-            ax[1].plot(history["loss"])
-            ax[1].plot(history["val_loss"])
-            ax[1].legend(["Train", "Test"])
-
-            fig.savefig(f"{self.symbol}-{category}.png")
 
             self.models[category] = model
 
@@ -159,31 +165,33 @@ class Krymeta:
             )
 
             prediction = self.gains[category][argmax(self.models[category].predict(
-                array(self.gains[category][-30:]).reshape(-1, 1, 30),
+                array(self.prices[category][-30:]).reshape(-1, 1, 30),
                 verbose=0
             ))]
 
             self.gains[category].append(prediction)
 
             self.prices[category].append(
-                (prediction * self.gains[category][-2]) + self.gains[category][-2]
+                prediction + self.prices[category][-1]
             )
 
     def plot(self) -> None:
         fig, ax = subplots(2, 1)
 
-        ax[0].set_title("High")
-        ax[0].plot([self.gains["high"][y] for y in self.yTest["high"]])
-        ax[0].plot(self.gains["high"][-len(self.yTest["high"]):])
-        ax[0].legend(["Orginal", "Prediction"])
+        ax[0].set_title("Predicted Prices")
+        ax[0].plot(self.prices["high"][-100:])
+        ax[0].plot(self.prices["low"][-100:])
+        ax[0].legend(["High", "Low"])
 
-        ax[1].set_title("Low")
-        ax[1].plot([self.gains["low"][y] for y in self.yTest["low"]])
-        ax[1].plot(self.gains["low"][-len(self.yTest["low"]):])
-        ax[1].legend(["Orginal", "Prediction"])
+        ax[1].set_title("All Prices")
+        ax[1].plot(self.prices["high"])
+        ax[1].plot(self.prices["low"])
+        ax[1].legend(["High", "Low"])
 
-        fig.savefig(f"{self.symbol}.png")
+        fig.savefig(f"{self.symbol}.png") 
 
-Krymeta("AAPL")
+        show()
+
+Krymeta("msft")
 
 print("Done")
