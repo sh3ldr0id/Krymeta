@@ -333,7 +333,7 @@ class Krymeta:
                     self.buy()
 
                 self.prices = self.prices[-4:]
-                self.rolling_sums = self.rolling_sums[-(self.FREQ-1):]
+                self.rolling_sums = self.rolling_sums[-(self.FREQUENCY-1):]
 
             sleep(60 - now.tm_sec)
 
