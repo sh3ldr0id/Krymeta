@@ -1,8 +1,10 @@
 {
-    "api_key": "<YOUR_API_KEY>",
-    "api_secret": "<YOUR_API_SECRET>",
+    "api_key": "vLnBUC5xBzLCwz0RpRDJUCOu3RZTJ7D7L6DLlORA3Lx9KzBBsONPKJ9MMMVbNdzq",
+    "api_secret": "fSpMqQWkvD8ZE8s472Pa3TnhUHL06JhEmR4zhBkrbtyZXzcn5AcGov2p4jHS9inF",
     "base": "BTC",
     "quote": "BUSD",
+    "amount": 50,
+    "leverage": 5,
     "frequency": 20,
     "accuracy": 0.8
 }

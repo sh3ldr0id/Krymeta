@@ -35,6 +35,8 @@ class Krymeta:
                  api_secret: str,
                  base: str = "BTC", 
                  quote: str = "BUSD", 
+                 amount: float = 20,
+                 leverage: int = 5,
                  FREQUENCY: int = 20,
                  ACCURACY: float = 0.80
                 ) -> None:
@@ -42,6 +44,9 @@ class Krymeta:
         self.quote = quote
 
         self.symbol = base + quote
+
+        self.amount = amount
+        self.leverage = leverage
 
         self.FREQUENCY = FREQUENCY
     
@@ -54,6 +59,11 @@ class Krymeta:
         self.client = Client(
             api_key=api_key,
             api_secret=api_secret
+        )
+
+        self.client.futures_change_leverage(
+            symbol=self.symbol, 
+            leverage=self.leverage
         )
 
         self.prices = []
@@ -82,7 +92,7 @@ class Krymeta:
     def fetch_prices(self) -> None:
         logging.info("Fetching Historical Data")
 
-        dataset = self.client.get_historical_klines_generator(
+        dataset = self.client.futures_historical_klines_generator(
             symbol=self.symbol,
             interval=Client.KLINE_INTERVAL_1MINUTE,
             start_str=str(datetime.today()-timedelta(
@@ -219,7 +229,7 @@ class Krymeta:
                 if now.tm_sec == 0:
                     prices.append(
                         float(
-                            self.client.get_symbol_ticker(
+                            self.client.futures_symbol_ticker(
                                 symbol=self.symbol
                             )["price"]
                         )
@@ -245,15 +255,17 @@ class Krymeta:
 
     def buy(self):
         quote_balance = float(
-            self.client.get_asset_balance(
+            self.client.futures_account_balance(
                 self.quote
             )['free']
         )
 
         if quote_balance > 20:
-            order = self.client.order_market_buy(
+            order = self.client.futures_create_order(
                 symbol=self.symbol,
-                quoteOrderQty=quote_balance
+                type='MARKET',
+                side="BUY",
+                quantity=(self.amount*self.leverage) / self.prices[-1]
             )
 
             logger.info(f"BUY | Order Id #{order['orderId']} | Qty {order['origQty']} {config['base']}")
@@ -263,24 +275,23 @@ class Krymeta:
 
     def sell(self):
         base_balance = float(
-            self.client.get_asset_balance(
+            self.client.futures_account_balance(
                 self.base
             )["free"]
         )
 
         if (base_balance * self.prices[-1]) > 20:
-            order = self.client.order_market_sell(
+            order = self.futures_create_order(
                 symbol=self.symbol,
-                quoteOrderQty=round(
-                    base_balance * self.prices[-1],
-                    8
-                )
+                type='MARKET',
+                side="SELL",
+                quantity=base_balance
             )
 
             sleep(2.5)
 
             quote_balance = float(
-                self.client.get_asset_balance(
+                self.client.futures_account_balance(
                     self.quote
                 )['free']
             )
@@ -299,7 +310,7 @@ class Krymeta:
             if now.tm_sec == 0:
                 self.prices.append(
                     float(
-                        self.client.get_symbol_ticker(
+                        self.client.futures_symbol_ticker(
                             symbol=self.symbol
                         )["price"]
                     )
@@ -321,7 +332,7 @@ class Krymeta:
                         
                     else:
                         assets = float(
-                            self.client.get_asset_balance(
+                            self.client.futures_account_balance(
                                 self.base
                             )["free"]
                         )
@@ -352,6 +363,8 @@ if __name__ == "__main__":
         api_secret=config["api_secret"],
         base=config["base"],
         quote=config["quote"],
+        amount=config["amount"],
+        leverage=config["leverage"],
         FREQUENCY=config["frequency"],
         ACCURACY=config["accuracy"]
     )
